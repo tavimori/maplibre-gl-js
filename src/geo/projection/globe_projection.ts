@@ -64,8 +64,6 @@ export class GlobeProjection extends Evented implements Projection {
         return this.transitionState > 0;
     }
 
-    get latitudeErrorCorrectionRadians(): number { return this._verticalPerspectiveProjection.latitudeErrorCorrectionRadians; }
-
     private get currentProjection(): Projection {
         return this.useGlobeRendering ? this._verticalPerspectiveProjection : this._mercatorProjection;
     }
@@ -132,8 +130,4 @@ export class GlobeProjection extends Evented implements Projection {
         this.properties = this._transitioning.possiblyEvaluate(parameters);
     }
 
-    setErrorQueryLatitudeDegrees(value: number) {
-        this._verticalPerspectiveProjection.setErrorQueryLatitudeDegrees(value);
-        this._mercatorProjection.setErrorQueryLatitudeDegrees(value);
-    }
 }

@@ -3653,8 +3653,7 @@ export class Map extends Camera {
         }
 
         const globeRenderingChanged = this.style.projection?.transitionState > 0 !== isGlobeRendering;
-        this.style.projection?.setErrorQueryLatitudeDegrees(this.transform.center.lat);
-        this.transform.setTransitionState(this.style.projection?.transitionState, this.style.projection?.latitudeErrorCorrectionRadians);
+        this.transform.setTransitionState(this.style.projection?.transitionState);
 
         // If we are in _render for any reason other than an in-progress paint
         // transition, update tile managers to check for and load any tiles we

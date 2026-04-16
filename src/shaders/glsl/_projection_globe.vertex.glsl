@@ -30,8 +30,10 @@ mat3 globeGetRotationMatrix(vec3 spherePos) {
 // Use `projectLineThickness` or `projectCircleRadius` instead.
 float circumferenceRatioAtTileY(float tileY) {
     float mercator_pos_y = u_projection_tile_mercator_coords.y + u_projection_tile_mercator_coords.w * tileY;
-    float spherical_y = 2.0 * atan(exp(PI - (mercator_pos_y * PI * 2.0))) - PI * 0.5;
-    return cos(spherical_y);
+    // Algebraic cos(spherical_y) via exp, avoids sin/cos precision loss on Mali GPUs.
+    // Identity: cos(2*atan(t) - PI/2) = 2t / (t^2 + 1)
+    float t = exp(PI - (mercator_pos_y * PI * 2.0));
+    return (2.0 * t) / (t * t + 1.0);
 }
 
 float projectLineThickness(float tileY) {
@@ -51,16 +53,23 @@ vec3 projectToSphere(vec2 translatedPos, vec2 rawPos) {
     // Compute position in range 0..1 of the base tile of web mercator
     vec2 mercator_pos = u_projection_tile_mercator_coords.xy + u_projection_tile_mercator_coords.zw * translatedPos;
 
-    // Now compute angular coordinates on the surface of a perfect sphere
-    vec2 spherical;
-    spherical.x = mercator_pos.x * PI * 2.0 + PI;
-    spherical.y = 2.0 * atan(exp(PI - (mercator_pos.y * PI * 2.0))) - PI * 0.5;
+    float spherical_x = mercator_pos.x * PI * 2.0 + PI;
 
-    float len = cos(spherical.y);
+    // Derive sin/cos of spherical_y algebraically from exp(), bypassing GLSL
+    // sin/cos which have insufficient precision on some GPUs (e.g. Mali).
+    // Given t = exp(PI - mercator_y * 2*PI):
+    //   sin(2*atan(t) - PI/2) = (t^2 - 1) / (t^2 + 1)
+    //   cos(2*atan(t) - PI/2) =      2*t   / (t^2 + 1)
+    float t = exp(PI - (mercator_pos.y * PI * 2.0));
+    float t2 = t * t;
+    float denom = t2 + 1.0;
+    float sin_sy = (t2 - 1.0) / denom;
+    float cos_sy = (2.0 * t) / denom;
+
     vec3 pos = vec3(
-        sin(spherical.x) * len,
-        sin(spherical.y),
-        cos(spherical.x) * len
+        sin(spherical_x) * cos_sy,
+        sin_sy,
+        cos(spherical_x) * cos_sy
     );
 
     // North pole

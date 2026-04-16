@@ -1,20 +1,16 @@
 import type {Context} from '../../webgl/context';
 import type {CanonicalTileID} from '../../tile/tile_id';
 import {type Mesh} from '../../render/mesh';
-import {now} from '../../util/time_control';
-import {easeCubicInOut, lerp} from '../../util/util';
-import {mercatorYfromLat} from '../mercator_coordinate';
 import {SubdivisionGranularityExpression, SubdivisionGranularitySetting} from '../../render/subdivision_granularity_settings';
 import type {Projection, ProjectionGPUContext, TileMeshUsage} from './projection';
 import {type PreparedShader, shaders} from '../../shaders/shaders';
-import {ProjectionErrorMeasurement} from './globe_projection_error_measurement';
 import {createTileMeshWithBuffers, type CreateTileMeshOptions} from '../../util/create_tile_mesh';
 import {type EvaluationParameters} from '../../style/evaluation_parameters';
 
 export const VerticalPerspectiveShaderDefine = '#define GLOBE';
 export const VerticalPerspectiveShaderVariantKey = 'globe';
-
 export const globeConstants = {
+    // Kept for test compatibility; no longer used for atan correction transitions.
     errorTransitionTimeSeconds: 0.5
 };
 
@@ -35,14 +31,6 @@ const granularitySettingsGlobe: SubdivisionGranularitySetting = new SubdivisionG
 
 export class VerticalPerspectiveProjection implements Projection {
     private _tileMeshCache: {[_: string]: Mesh} = {};
-
-    // GPU atan() error correction
-    private _errorMeasurement: ProjectionErrorMeasurement;
-    private _errorQueryLatitudeDegrees: number;
-    private _errorCorrectionUsable: number = 0.0;
-    private _errorMeasurementLastValue: number = 0.0;
-    private _errorCorrectionPreviousValue: number = 0.0;
-    private _errorMeasurementLastChangeTime: number = -1000.0;
 
     get name(): 'vertical-perspective' {
         return 'vertical-perspective';
@@ -80,41 +68,12 @@ export class VerticalPerspectiveProjection implements Projection {
         return true;
     }
 
-    /**
-     * @internal
-     * Globe projection periodically measures the error of the GPU's
-     * projection from mercator to globe and computes how much to correct
-     * the globe's latitude alignment.
-     * This stores the correction that should be applied to the projection matrix.
-     */
-    get latitudeErrorCorrectionRadians(): number { return this._errorCorrectionUsable; }
-
     public destroy() {
-        if (this._errorMeasurement) {
-            this._errorMeasurement.destroy();
-        }
+        // Do nothing.
     }
 
-    public updateGPUdependent(renderContext: ProjectionGPUContext): void {
-        if (!this._errorMeasurement) {
-            this._errorMeasurement = new ProjectionErrorMeasurement(renderContext);
-        }
-        const mercatorY = mercatorYfromLat(this._errorQueryLatitudeDegrees);
-        const expectedResult = 2.0 * Math.atan(Math.exp(Math.PI - (mercatorY * Math.PI * 2.0))) - Math.PI * 0.5;
-        const newValue = this._errorMeasurement.updateErrorLoop(mercatorY, expectedResult);
-
-        const currentTime = now();
-
-        if (newValue !== this._errorMeasurementLastValue) {
-            this._errorCorrectionPreviousValue = this._errorCorrectionUsable; // store the interpolated value
-            this._errorMeasurementLastValue = newValue;
-            this._errorMeasurementLastChangeTime = currentTime;
-        }
-
-        const sinceUpdateSeconds = (currentTime - this._errorMeasurementLastChangeTime) / 1000.0;
-        const mix = Math.min(Math.max(sinceUpdateSeconds / globeConstants.errorTransitionTimeSeconds, 0.0), 1.0);
-        const newCorrection = -this._errorMeasurementLastValue; // Note the negation
-        this._errorCorrectionUsable = lerp(this._errorCorrectionPreviousValue, newCorrection, easeCubicInOut(mix));
+    public updateGPUdependent(_renderContext: ProjectionGPUContext): void {
+        // Do nothing.
     }
 
     private _getMeshKey(options: CreateTileMeshOptions): string {
@@ -152,16 +111,7 @@ export class VerticalPerspectiveProjection implements Projection {
     }
 
     hasTransition(): boolean {
-        const currentTime = now();
-        let dirty = false;
-        // Error correction transition
-        dirty = dirty || (currentTime - this._errorMeasurementLastChangeTime) / 1000.0 < (globeConstants.errorTransitionTimeSeconds + 0.2);
-        // Error correction query in flight
-        dirty = dirty || (this._errorMeasurement?.awaitingQuery);
-        return dirty;
+        return false;
     }
 
-    setErrorQueryLatitudeDegrees(value: number) {
-        this._errorQueryLatitudeDegrees = value;
-    }
 }

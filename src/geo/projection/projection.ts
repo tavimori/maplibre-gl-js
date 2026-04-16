@@ -19,7 +19,7 @@ import type {EvaluationParameters} from '../../style/evaluation_parameters';
  * The projection-implementing class:
  * - must provide basic information and data about the projection, which is *independent of the map's state* - name, shader functions, subdivision settings, etc.
  * - must be a "singleton" - no matter how many copies of the matching Transform class exist, the Projection should always exist as a single instance (per Map)
- * - may create heavy resources that should not exist in multiple copies (projection is never cloned) - for example, see the GPU inaccuracy mitigation for globe projection
+ * - may create heavy resources that should not exist in multiple copies (projection is never cloned)
  * - must be explicitly disposed of after usage using the `destroy` function - this allows the implementing class to free any allocated resources
  */
 
@@ -101,12 +101,6 @@ export interface Projection {
 
     /**
      * @internal
-     * Gets the error correction latitude in radians.
-     */
-    get latitudeErrorCorrectionRadians(): number;
-
-    /**
-     * @internal
      * Cleans up any resources the projection created, especially GPU buffers.
      */
     destroy(): void;
@@ -141,9 +135,4 @@ export interface Projection {
      */
     hasTransition(): boolean;
 
-    /**
-     * @internal
-     * Sets the error query latidude in degrees
-     */
-    setErrorQueryLatitudeDegrees(value: number);
 }
